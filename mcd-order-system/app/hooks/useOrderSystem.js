@@ -83,19 +83,24 @@ export default function useOrderSystem() {
   }
 
   function removeBot() {
-    setBots((prev) => {
-      if (prev.length === 0) return prev;
+    setBots((prevBots) => {
+      if (prevBots.length === 0) return prevBots;
 
-      const lastBot = prev[prev.length - 1];
+      const lastBot = prevBots[prevBots.length - 1];
 
-      // ❌ If busy → do NOT remove
-      if (lastBot.status === "BUSY") {
-        alert("Cannot remove a busy bot!");
-        return prev;
+      // If BUSY → recover order back to pending
+      if (lastBot.status === "BUSY" && lastBot.currentOrder) {
+        if (lastBot.timer) {
+          clearTimeout(lastBot.timer);
+        }
+
+        setPending((prevPending) =>
+          insertWithPriority(lastBot.currentOrder, prevPending),
+        );
       }
 
-      // ✅ Safe to remove (IDLE bot)
-      return prev.slice(0, -1);
+      // Remove bot (always allowed now)
+      return prevBots.slice(0, -1);
     });
   }
 
