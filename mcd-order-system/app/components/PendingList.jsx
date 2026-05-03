@@ -7,7 +7,7 @@ export default function PendingList({ pending }) {
 
       {pending.map(order => (
         <div
-          key={order.id}
+          key={order.instanceId}
           className={`p-2 mb-1 rounded ${
             order.type === "VIP"
               ? "bg-yellow-100 border-l-4 border-yellow-500 text-black"

@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 
 let nextId = 1;
+let nextInstanceId = 1;
 
 export default function useOrderSystem() {
   const [pending, setPending] = useState([]);
@@ -9,19 +10,33 @@ export default function useOrderSystem() {
   const [bots, setBots] = useState([]);
 
   function insertWithPriority(order, list) {
-    if (order.type === "VIP") {
-      const idx = list.findIndex((o) => o.type !== "VIP");
-      if (idx === -1) return [...list, order];
-      return [...list.slice(0, idx), order, ...list.slice(idx)];
+    const isVIP = order.type === "VIP";
+
+    const vip = list.filter((o) => o.type === "VIP");
+    const normal = list.filter((o) => o.type !== "VIP");
+
+    const insertByTime = (arr) => {
+      const idx = arr.findIndex((o) => o.createdAt > order.createdAt);
+      if (idx === -1) return [...arr, order];
+      return [...arr.slice(0, idx), order, ...arr.slice(idx)];
+    };
+
+    if (isVIP) {
+      const newVip = insertByTime(vip);
+      return [...newVip, ...normal];
+    } else {
+      const newNormal = insertByTime(normal);
+      return [...vip, ...newNormal];
     }
-    return [...list, order];
   }
 
   function addOrder(type) {
     const order = {
       id: nextId++,
+      instanceId: nextInstanceId++,
       type,
       status: "PENDING",
+      createdAt: Date.now(),
     };
 
     setPending((prev) => insertWithPriority(order, prev));
@@ -29,18 +44,21 @@ export default function useOrderSystem() {
 
   function processOrder(botId, order) {
     const timer = setTimeout(() => {
-      setCompleted((prev) => {
-        if (prev.some((o) => o.id === order.id)) return prev;
-        return [...prev, order];
-      });
+      setBots((currentBots) => {
+        const bot = currentBots.find((b) => b.id === botId);
 
-      setBots((prev) =>
-        prev.map((bot) =>
-          bot.id === botId
-            ? { ...bot, status: "IDLE", currentOrder: null, timer: null }
-            : bot,
-        ),
-      );
+        if (!bot || bot.currentOrder?.id !== order.id) return currentBots;
+
+        setCompleted((prev) =>
+          prev.some((o) => o.id === order.id) ? prev : [...prev, order],
+        );
+
+        return currentBots.map((b) =>
+          b.id === botId
+            ? { ...b, status: "IDLE", currentOrder: null, timer: null }
+            : b,
+        );
+      });
     }, 10000);
 
     setBots((prev) =>
@@ -84,22 +102,26 @@ export default function useOrderSystem() {
 
   function removeBot() {
     setBots((prevBots) => {
-      if (prevBots.length === 0) return prevBots;
+      if (!prevBots.length) return prevBots;
 
       const lastBot = prevBots[prevBots.length - 1];
 
-      // If BUSY → recover order back to pending
       if (lastBot.status === "BUSY" && lastBot.currentOrder) {
-        if (lastBot.timer) {
-          clearTimeout(lastBot.timer);
-        }
+        if (lastBot.timer) clearTimeout(lastBot.timer);
 
-        setPending((prevPending) =>
-          insertWithPriority(lastBot.currentOrder, prevPending),
-        );
+        const restoredOrder = {
+          ...lastBot.currentOrder,
+          createdAt: lastBot.currentOrder.createdAt || Date.now(),
+        };
+
+        setPending((prev) => {
+          const filtered = prev.filter(
+            (o) => o.instanceId !== restoredOrder.instanceId,
+          );
+          return insertWithPriority(restoredOrder, filtered);
+        });
       }
 
-      // Remove bot (always allowed now)
       return prevBots.slice(0, -1);
     });
   }

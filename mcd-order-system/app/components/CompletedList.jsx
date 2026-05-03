@@ -6,7 +6,7 @@ export default function CompletedList({ completed }) {
       {completed.length === 0 && <p>No completed orders</p>}
 
       {completed.map(order => (
-        <div key={order.id} className="p-2 mb-1 bg-green-100 rounded text-black">
+        <div key={order.instanceId} className="p-2 mb-1 bg-green-100 rounded text-black">
           [{order.type}] Order #{order.id}
         </div>
       ))}
